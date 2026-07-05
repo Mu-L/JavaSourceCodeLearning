@@ -1,3 +1,5 @@
++ 转载请标明出处
+
 # EventLoop
 EventLoop 是Netty的事件循环线程模型，它负责：
 
