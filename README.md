@@ -1,5 +1,3 @@
-![JavaSourceCodeLearningImage](https://github.com/coderbruis/JavaSourceCodeLearning/blob/master/note/images/JavaSourceCodeLearningImage.png)
-
 <h1 align="center">Java Source Code Learning</h1>
 
 <p align="center">
