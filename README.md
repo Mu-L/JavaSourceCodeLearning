@@ -23,7 +23,7 @@
     <img src="https://img.shields.io/badge/RocketMQ-4.9.0-green" alt="rocketmq">
   </a>
   <a href="https://kafka.apache.org/">
-    <img src="https://img.shields.io/badge/kafka-4.0.2-yellowgreen" alt="rocketmq">
+    <img src="https://img.shields.io/badge/kafka-4.3-yellowgreen" alt="rocketmq">
   </a>
 </p>
 
