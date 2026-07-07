@@ -29,17 +29,17 @@
     <img src="https://img.shields.io/badge/RocketMQ-4.9.0-green" alt="RocketMQ">
   </a>
   <a href="https://kafka.apache.org/">
-    <img src="https://img.shields.io/badge/Kafka-4.0.2-yellowgreen" alt="Kafka">
+    <img src="https://img.shields.io/badge/Kafka-4.3-yellowgreen" alt="Kafka">
   </a>
 </p>
 
 ## 项目亮点
 
-| 你能看到什么 | 重点能力 |
-| --- | --- |
-| JDK / JUC 源码 | 集合、并发、线程池、内存模型、CompletableFuture |
-| Spring / SpringBoot 源码 | IOC 容器、事件机制、启动流程、自动装配、扩展点 |
-| SpringAOP / Security / OAuth2 | 代理机制、过滤器链、安全认证授权主流程 |
+| 你能看到什么 | 重点能力                                       |
+| --- |--------------------------------------------|
+| JDK / JUC 源码 | 集合、并发、线程池、内存模型、CompletableFuture           |
+| Spring / SpringBoot 源码 | IOC 容器、事件机制、启动流程、自动装配、扩展点                  |
+| SpringAOP / Security / OAuth2 | 代理机制、过滤器链、安全认证授权主流程                        |
 | Netty 源码 | Reactor 模型、EventLoop、ChannelPipeline、网络通信链路 |
 | Kafka / RocketMQ 源码 | Broker、Producer、Consumer、Rebalance、消息存储与复制 |
 
