@@ -65,6 +65,9 @@ Kafka / RocketMQ 消息系统源码
 
 ## 精选图解
 
+### Kafka架构图
+![kafka_architecture](https://github.com/coderbruis/JavaSourceCodeLearning/releases/download/images-v1/kafka_architecture.png)
+
 ### Kafka Rebalance
 
 ![Kafka Cooperative Rebalance](https://github.com/coderbruis/JavaSourceCodeLearning/releases/download/images-v1/kafka_COOPERATIVE_rebalance.png)
