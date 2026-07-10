@@ -1,6 +1,12 @@
 + 当前分析版本是kafka最新版本（版本随时变化，最新分析代码请关注仓库：[https://github.com/coderbruis/kafka](https://github.com/coderbruis/kafka)   **<font style="color:#DF2A3F;">source_code_analysis分支</font>**，底层原理持续更新）
 + 转载请标明出处
 
+# Kafka Rebalance流程图
+
+![Kafka EAGER Rebalance](https://github.com/coderbruis/JavaSourceCodeLearning/releases/download/images-v1/kafka_EAGER_rebalance.png)
+
+![Kafka Cooperative Rebalance](https://github.com/coderbruis/JavaSourceCodeLearning/releases/download/images-v1/kafka_COOPERATIVE_rebalance.png)
+
 # Kafka Rebalance 核心流程
 `KafkaConsumer.poll()` 是消费者触发 rebalance 的主要入口。
 
@@ -629,20 +635,47 @@ if (protocol == RebalanceProtocol.COOPERATIVE &&
 
 # EAGER 和 COOPERATIVE 的差异
 ## EAGER
-EAGER rebalance 的特点是简单直接。
+EAGER核心特点：全量停、全量分、再恢复
 
-```plain
-onJoinPrepare:
-  revoke all partitions
-  clear local assignment
+### EAGER Rebalance流程
 
-leader assign:
-  assign all partitions again
+第一步：触发 Rebalance
+1. 成员变化：join / leave / session timeout / max.poll.interval 超时等。
+2. 订阅或元数据变化：订阅 topic 变化、正则订阅匹配变化、partition 数变化等。
 
-onJoinComplete:
-  assign new partitions
-  trigger onPartitionsAssigned
-```
+第二步：Coordinator 进入 Rebalance 状态
+1. Coordinator 将 group 状态切到 PreparingRebalance（可能不是第一次进入rebalance，所以这里状态已经是PreparingRebalance了，正常第一次是在JoinGroup进入Coordinator里，会将状态变更为PreparingRebalance。）
+2. 现有成员会通过 heartbeat 或 poll 流程感知需要重新加入 group。
+3. 新成员或需要重分配的成员准备发送 JoinGroupRequest。
+
+第三步：EAGER 全员撤销旧 assignment，然后 JoinGroup
+1. 每个 consumer 在 JoinGroup 前执行 onJoinPrepare。
+2. EAGER 协议下 revoke 当前持有的所有 partitions。
+3. 调用 onPartitionsRevoked(allAssignedPartitions)。
+4. 清空本地 assignment，停止这些 partitions 的消费。全组成员进入消费暂停状态（STW）。
+5. 向 coordinator 发送 JoinGroupRequest，携带 subscription 和支持的 assignor。
+
+第四步：JoinGroup 完成成员协商
+1. Coordinator 收集本轮成员的 JoinGroupRequest。
+2. 选择 leader consumer。
+3. 选择 assignment strategy / protocol，leader consumer生成新的assignment。
+4. 生成新的 generationId，同时将group状态变更为COMPLETING_REBALANCE。
+5. JoinGroupResponse 返回给成员。
+6. Leader 会拿到所有成员的 subscription metadata。
+
+第五步：分配 + SyncGroup
+1. Leader consumer 执行分配算法，比如 Range / Sticky。
+2. Leader 通过 SyncGroupRequest 把全组 assignment 发给 coordinator。
+3. Follower 也发送 SyncGroupRequest，但通常不带 assignment。
+4. Coordinator 保存本轮 assignment，group状态变更为STABLE。
+5. Coordinator 通过各自的 SyncGroupResponse 返回每个 consumer 自己的 assignment。
+
+第六步：恢复消费
+1. Consumer 收到自己的 assignment。
+2. 更新本地 assignment。
+3. 调用 onPartitionsAssigned(newAssignedPartitions)。
+4. 从对应 offset 开始拉取消息，恢复消费。
+
 
 优点：
 
@@ -655,23 +688,70 @@ onJoinComplete:
 + 即使某些 partition 仍然分给同一个 consumer，也会先 revoke 再 assign。
 
 ## COOPERATIVE
-COOPERATIVE rebalance 的特点是渐进迁移。
+COOPERATIVE rebalance 的特点是渐进迁移，不会撤销所有分区导致全部分区STW。
 
-```plain
-onJoinPrepare:
-  keep still-owned partitions
-  revoke only obviously invalid partitions
+### COOPERATIVE Rebalance流程
 
-leader assign:
-  do not immediately reassign partitions still owned by others
+第一轮：标记迁移，旧 owner revoke（onwer表示持有parition的consumer）
+1. 成员变化、订阅变化或元数据变化触发 rebalance。
+2. consumer 发送 JoinGroup 给 coordinator。
+   JoinGroup metadata 里包含：
+   ○ 当前 subscription
+   ○ 当前本地已分配分区，也就是 ownedPartitions
+3. coordinator 收集所有成员的 JoinGroup。
+   coordinator 负责：
+   ○ 选 leader
+   ○ 选 assignor/protocol
+   ○ 把所有成员 subscription metadata 返回给 leader
+   coordinator收集完所有的JoinGroup请求之后，会进入新的generationId（递增）。
+4. leader consumer 执行 assignor。
+   CooperativeStickyAssignor 会：
+   ○ 先计算目标 assignment
+   ○ 如果某个分区要从旧 owner 转给新 owner
+   ○ 但旧 owner 在本轮 JoinGroup 里仍上报该分区为 owned
+   ○ 那么本轮不会把该分区分给新 owner
+   ○ 同时旧 owner 的本轮 assignment 不再包含该分区
+5. leader Consumer 通过 SyncGroup 把全组 assignment 提交给 coordinator。其他consumer也会发送一个空的SyncGroup给coorinator
+6. coordinator 保存 assignment，并通过 SyncGroupResponse 返回每个 consumer 自己的 assignment。
+7. consumer 处理 SyncGroupResponse。
+   本地计算：
+```text
+   owned = 当前本地 assignment
+   assigned = 本轮收到的 assignment
 
-onJoinComplete:
-  revoke partitions that need migration
-  request another rejoin if needed
-
-next rebalance:
-  assign released partitions to new owners
+   revoked = owned - assigned
+   added = assigned - owned
 ```
+
+需要注意，第一轮主要是做撤销，但是也可能直接添加新的分区分配结果。因为如果这一轮有某个分区本来就没有旧onwer（旧的持有这个parition的consumer），这一轮就可以直接分配给新onwer。
+8. 如果 revoked 非空：
+   ○ 调用 onPartitionsRevoked(revoked)
+   ○ 调用 requestRejoin()
+   ○ 后续把本地 assignment 更新为 assigned
+9. 如果 added 非空：
+   ○ 调用 onPartitionsAssigned(added)
+   注意：正在从旧 owner 转移给新 owner 的分区，第一轮不会出现在新 owner 的 added 里。
+   第二轮：旧owner撤销分区，新owner获得第一轮撤销的分区
+1. 因为第一轮有 consumer 调用了 requestRejoin()，group 再次 rebalance。
+2. consumer 再次发送 JoinGroup。
+   此时旧 owner 的本地 assignment 已经更新，所以它上报的 ownedPartitions 不再包含刚刚 revoked 的分区。
+   被撤销的分区不会通过JoinGroup发送给Coordinator，revokeList和addLIst都是通过集合计算来得出的。
+   coordinator收集完所有的JoinGroup请求之后，会进入新的generationId（递增）。
+3. coordinator 再次收集成员，选 leader，选协议。
+   然后将所有成员 subscription metadata 返回给 leader consumer。
+4. leader 再次执行 assignor。
+   这次 assignor 发现：
+   ○ 该分区已经没有旧 owner 上报 owned
+   ○ 可以安全分配给新 owner
+5. leader 通过 SyncGroup 提交新的全组 assignment。
+6. coordinator 通过 SyncGroupResponse 返回各成员自己的 assignment。
+7. 新 owner 处理 assignment。
+   本地计算：
+   added = assigned - owned
+8. 新 owner 对新增分区调用：
+   onPartitionsAssigned(added)
+
+
 
 优点：
 

@@ -1,6 +1,10 @@
 + 当前分析版本是kafka最新版本（版本随时变化，最新分析代码请关注仓库：https://github.com/coderbruis/kafka source_code_analysis分支，底层原理持续更新）
 + 转载请标明出处
 
+# Kafka HW,ISR,LEO关系图
+
+![Kafka_HW_ISR_LEO](https://github.com/coderbruis/JavaSourceCodeLearning/releases/download/images-v1/kafka_HW_ISR_LEO.png)
+
 # Kafka ISR是什么？解决什么问题？
 ## 是什么？
 Kafka ISR是In-Sync Replicas，意思是“与leader保持同步的副本集合”。在Kafka中会有leader副本和follower副本，下面举例：

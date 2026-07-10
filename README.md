@@ -80,9 +80,9 @@ Kafka / RocketMQ 消息系统源码
 ![kafka_architecture](https://github.com/coderbruis/JavaSourceCodeLearning/releases/download/images-v1/kafka_architecture.png)
 
 <strong>Kafka Rebalance流程图</strong>
-![Kafka Cooperative Rebalance](https://github.com/coderbruis/JavaSourceCodeLearning/releases/download/images-v1/kafka_COOPERATIVE_rebalance.png)
-
 ![Kafka EAGER Rebalance](https://github.com/coderbruis/JavaSourceCodeLearning/releases/download/images-v1/kafka_EAGER_rebalance.png)
+
+![Kafka Cooperative Rebalance](https://github.com/coderbruis/JavaSourceCodeLearning/releases/download/images-v1/kafka_COOPERATIVE_rebalance.png)
 
 <strong>Kafka ISR / HW / LEO关系图</strong>
 ![Kafka_HW_ISR_LEO](https://github.com/coderbruis/JavaSourceCodeLearning/releases/download/images-v1/kafka_HW_ISR_LEO.png)
@@ -100,7 +100,7 @@ Kafka / RocketMQ 消息系统源码
 - [深入分析 ThreadLocal](https://github.com/coderbruis/JavaSourceCodeLearning/blob/master/note/JDK/%E6%B7%B1%E5%85%A5%E5%88%86%E6%9E%90ThreadLocal.md)
 - [深入学习 Java volatile 关键字](https://github.com/coderbruis/JavaSourceLearning/blob/master/note/JDK/%E6%B7%B1%E5%85%A5%E5%AD%A6%E4%B9%A0Java%20volatile%E5%85%B3%E9%94%AE%E5%AD%97.md)
 - [深入学习 Thread 底层原理](https://github.com/coderbruis/JavaSourceCodeLearning/blob/master/note/JDK/%E6%B7%B1%E5%85%A5%E5%AD%A6%E4%B9%A0Thread%E5%BA%95%E5%B1%82%E6%BA%90%E7%A0%81.md)
-- [深入学习HashMap 底层源码与原理]()
+- [深入学习HashMap 底层源码与原理](https://github.com/coderbruis/JavaSourceCodeLearning/blob/master/note/JDK/HashMap%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90.md)
 - [开源项目里那些看不懂的位运算分析](https://github.com/coderbruis/JavaSourceCodeLearning/blob/master/note/JDK/%E5%BC%80%E6%BA%90%E9%A1%B9%E7%9B%AE%E9%87%8C%E9%82%A3%E4%BA%9B%E7%9C%8B%E4%B8%8D%E6%87%82%E7%9A%84%E4%BD%8D%E8%BF%90%E7%AE%97%E5%88%86%E6%9E%90.md)
 - [ThreadPoolExecutor 源码分析](https://github.com/coderbruis/JavaSourceCodeLearning/blob/master/note/JDK/%E6%B7%B1%E5%85%A5%E8%A7%A3%E6%9E%90ThreadPoolExecutor%E5%BA%95%E5%B1%82%E5%8E%9F%E7%90%86.md)
 

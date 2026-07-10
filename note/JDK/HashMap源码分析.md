@@ -1,4 +1,8 @@
-当前HashMap版本：JDK1.8
++ 当前HashMap版本：JDK1.8
++ 转载请标明出处
+
+# HashMap底层原理图
+![HashMap原理图](https://github.com/coderbruis/JavaSourceCodeLearning/releases/download/images-v1/HashMap.png)
 
 # HashMap的重要成员变量以及内部类
 > **默认容量：DEFAULT_INITIAL_CAPACITY**
