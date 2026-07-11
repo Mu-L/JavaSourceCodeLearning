@@ -107,6 +107,9 @@ Kafka / RocketMQ 消息系统源码
 <strong>HashMap原理图</strong>
 ![HashMap原理图](https://github.com/coderbruis/JavaSourceCodeLearning/releases/download/images-v1/HashMap.png)
 
+<strong>AQS架构图</strong>
+![AQS架构图](https://github.com/coderbruis/JavaSourceCodeLearning/releases/download/images-v1/AQS.png)
+
 </details>
 
 <details>
