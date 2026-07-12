@@ -73,13 +73,13 @@ Kafka / RocketMQ 消息系统源码
 - [Kafka Broker 核心源码分析](https://github.com/coderbruis/JavaSourceCodeLearning/blob/master/note/kafka/kafka%20broker%E6%A0%B8%E5%BF%83%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90.md)
 - [Kafka Broker 源码分析：生产者篇](https://github.com/coderbruis/JavaSourceCodeLearning/blob/master/note/kafka/kafka%20broker%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90%E2%80%94%E2%80%94%E7%94%9F%E4%BA%A7%E8%80%85%E7%AF%87.md)
 - [Kafka 消费者核心源码分析（一）](https://github.com/coderbruis/JavaSourceCodeLearning/blob/master/note/kafka/kafka%E6%B6%88%E8%B4%B9%E8%80%85%E6%A0%B8%E5%BF%83%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90%EF%BC%88%E4%B8%80%EF%BC%89.md)
-- [Kafka Rebalance 核心逻辑分析](https://github.com/coderbruis/JavaSourceCodeLearning/blob/master/note/kafka/kafka%20rebalance%E6%A0%B8%E5%BF%83%E9%80%BB%E8%BE%91%E5%88%86%E6%9E%90.md)
+- [Kafka Rebalance 核心逻辑分析(Classic Consumer Group Protocol)](https://github.com/coderbruis/JavaSourceCodeLearning/blob/master/note/kafka/kafka%20Rebalance%E6%A0%B8%E5%BF%83%E9%80%BB%E8%BE%91%E5%88%86%E6%9E%90.md)
 - [Kafka ISR 原理](https://github.com/coderbruis/JavaSourceCodeLearning/blob/master/note/kafka/Kafka%20ISR%20%E5%BA%95%E5%B1%82%E5%8E%9F%E7%90%86.md)
 
 <strong>Kafka架构图</strong>
 ![kafka_architecture](https://github.com/coderbruis/JavaSourceCodeLearning/releases/download/images-v1/kafka_architecture.png)
 
-<strong>Kafka Rebalance流程图</strong>
+<strong>Kafka Rebalance流程图(Classic Consumer Group Protocol 经典消费者组协议)</strong>
 ![Kafka EAGER Rebalance](https://github.com/coderbruis/JavaSourceCodeLearning/releases/download/images-v1/kafka_EAGER_rebalance.png)
 
 ![Kafka Cooperative Rebalance](https://github.com/coderbruis/JavaSourceCodeLearning/releases/download/images-v1/kafka_COOPERATIVE_rebalance.png)
