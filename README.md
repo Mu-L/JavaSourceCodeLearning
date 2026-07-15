@@ -160,7 +160,7 @@ Kafka / RocketMQ 消息系统源码
 <details>
 <summary><strong>Netty 底层源码解析</strong></summary>
 
-- Netty 版本：4.1.43.Final
+- Netty 版本：4.2
 - [Netty 概念扫盲](https://github.com/coderbruis/JavaSourceCodeLearning/blob/master/note/Netty/Netty%E6%A6%82%E5%BF%B5%E6%89%AB%E7%9B%B2.md)
 - [二进制运算以及源码、反码以及补码学习](https://github.com/coderbruis/JavaSourceLearning/blob/master/note/Netty/%E4%BA%8C%E8%BF%9B%E5%88%B6.md)
 - [Netty 源码包结构](https://github.com/coderbruis/JavaSourceLearning/blob/master/note/Netty/Netty%E6%BA%90%E7%A0%81%E5%8C%85%E7%BB%93%E6%9E%84.md)
@@ -177,6 +177,12 @@ Kafka / RocketMQ 消息系统源码
 - Netty 底层源码解析：RocketMQ 底层使用到的 Netty
 
 Netty 实战课相关代码位于 `Spring-Netty` 模块下的 `com/bruis/learnnetty/im` 包。
+
+<strong>Netty架构图</strong>
+![Netty整体架构图](https://github.com/coderbruis/JavaSourceCodeLearning/releases/download/images-v1/Netty4.2.x.png)
+
+<strong>Netty主从Reactor架构图</strong>
+![Netty主从Reactor架构图](https://github.com/coderbruis/JavaSourceCodeLearning/releases/download/images-v1/Netty4.2.x.Reactor.png)
 
 </details>
 
