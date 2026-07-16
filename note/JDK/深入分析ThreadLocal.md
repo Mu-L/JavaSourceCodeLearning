@@ -150,7 +150,7 @@ Entry是ThreadLocalMap数组中的核心元素，它继承了WeakReference。核
 Thread -> ThreadLocalMap -> Entry -> ThreadLocal
 ```
 
-在线程池场景下，线程可能长期存活。只要线程不结束，ThreadLocalMap 就还在，Entry 也还在，那么 ThreadLocal 对象就永远无法被 GC。即使业务代码已经不再持有这个 ThreadLocal 变量了，它也会被 Entry 强行引用住。这会导致：**<font style="color:#DF2A3F;">ThreadLocal 对象无法回收，对应的 value 也无法回收。</font>**
+在线程池场景下，线程可能长期存活。只要线程不结束，ThreadLocalMap 就还在，Entry 也还在，那么 ThreadLocal 对象就永远无法被 GC。即使业务代码已经不再持有这个 ThreadLocal 变量了，它也会被 Entry 强行引用住。这会导致：**<font style="color:#df2a3f;">ThreadLocal 对象无法回收，对应的 value 也无法回收。</font>**
 
 这个后果就是线程长期持有已经没用的 ThreadLocal 和 value，导致内存释放不了，严重时内存泄漏、数据串用、甚至 OOM。
 
@@ -516,7 +516,9 @@ new Thread(() -> {
 }).start();
 ```
 
-	而 InheritableThreadLocal 可以让子线程继承父线程的值：
+```plain
+而 InheritableThreadLocal 可以让子线程继承父线程的值：
+```
 
 ```java
 InheritableThreadLocal<String> local = new InheritableThreadLocal<>();
@@ -576,7 +578,7 @@ private ThreadLocalMap(ThreadLocalMap parentMap) {
 
 
 
-但是现在基本都没有直接通过new Thread()的方式创建线程了，基本都是通过线程池来管理线程。而在常规业务线程池里，InheritableThreadLocal 基本不适合作为上下文传递方案。它的继承时机是**<font style="color:#DF2A3F;">“创建线程时”</font>**，而线程池的线程通常早就创建好了，任务提交时不会重新继承父线程上下文。
+但是现在基本都没有直接通过new Thread()的方式创建线程了，基本都是通过线程池来管理线程。而在常规业务线程池里，InheritableThreadLocal 基本不适合作为上下文传递方案。它的继承时机是**<font style="color:#df2a3f;">“创建线程时”</font>**，而线程池的线程通常早就创建好了，任务提交时不会重新继承父线程上下文。
 
 线程池上下文传递方案，用的最多的就是阿里的TransmittableThreadLocal，简称 TTL。
 
@@ -620,7 +622,139 @@ class TtlRunnable implements Runnable {
 }
 ```
 
-	
+
 
 总结：TransmittableThreadLocal在线程池里传值，是通过包装任务，在任务提交时捕获父线程的 TTL 快照，在工作线程执行前恢复这份快照，执行结束后再还原工作线程原上下文来实现的。
+
+# ThreadLocal内存泄漏代码分析
+下面是一段ThreadLocal内存泄漏的伪代码，通过这段伪代码加深ThreadLocal底层原理的理解。
+
+```java
+static final ThreadLocal<UserInfo> USER_CONTEXT = new ThreadLocal<>();
+
+void handleRequest(Request request) {
+    UserInfo userInfo = getUserInfo(request);
+    USER_CONTEXT.set(userInfo);
+
+    doBusiness();
+
+    // 忘记执行 USER_CONTEXT.remove()
+}
+```
+
+上述这段代码是用户登录之后，获取用户信息并存到ThreadLocal中，但是方法结束后并未执行：USER_CONTEXT.remove()移除ThreadLocal中的用户信息，这会造成内存泄漏，下面通过引用链来分析下内存泄漏的原因。
+
+方法在USER_CONTEXT.set(userInfo)之后，引用关系如下图：
+
+```java
+GC Roots
+│
+├── ClassLoader
+│      │ 强引用
+│      ▼
+│   Class对象
+│      │ 静态字段强引用
+│      ▼
+│   USER_CONTEXT
+│      │ 强引用
+│      ▼
+│   ThreadLocal对象 ◀-------------------┐
+│                                      │
+└── 工作线程 Thread                     │
+       │                               │
+       ├── 线程栈                       │
+       │     │                          │
+       │     ▼                          │
+       │   handleRequest()栈帧          │
+       │     │                          │
+       │     ▼                          │
+       │   局部变量 userInfo             │
+       │     │ 强引用                    │
+       │     ▼                          │
+       │   UserInfo对象 ◀──────────┐     │
+       │                          │     │
+       └── threadLocals           │     │
+              │ 强引用             │     │
+              ▼                   │     │
+          ThreadLocalMap          │     │
+              │ 强引用             │     │
+              ▼                   │     │
+            Entry                 │     │
+              ├── value强引用 ─────┘     │
+              │                         │
+              └---- key弱引用 -----------┘
+```
+
+这里有个细节，调用了USER_CONTEXT.set(userInfo)之后，ThreadLocal对象被USER_CONTEXT强引用引用，同时还被Entry这个弱引用给引用了。
+
+
+
+当handleRequest()方法调用完之后，userInfo局部变量消失，此时引用关系图如下
+
+```java
+GC Roots
+│
+├── ClassLoader
+│      │ 强引用
+│      ▼
+│   Class对象
+│      │ 静态字段强引用
+│      ▼
+│   USER_CONTEXT
+│      │ 强引用
+│      ▼
+│   ThreadLocal对象 ◀--------------------┐
+│                                      	│
+└── 工作线程 Thread                     	│
+       │                               	│
+       ├── 线程栈                       	│
+       │     │                          │
+       │     └── handleRequest栈帧已消失 	│
+       │                               	│
+       └── threadLocals                	│
+              │ 强引用                  	│
+              ▼                        	│
+          ThreadLocalMap               	│
+              │ 强引用                  	│
+              ▼                        	│
+            Entry                      	│
+              ├---- key弱引用 -----------┘
+              │
+              └── value强引用
+                      │
+                      ▼
+                  UserInfo对象
+```
+
+此时发生变化的是，局部变量对应的引用已经断开。
+
+```java
+局部变量userInfo ──X──> UserInfo对象
+```
+
+
+
+因此，即使局部变量消失，`UserInfo` 仍然无法被 GC 回收。只有执行 `USER_CONTEXT.remove()` 清理对应 Entry，才能断开这条引用链。
+
+
+
+所以正确的写法如下
+
+```java
+private static final ThreadLocal<UserInfo> USER_CONTEXT =
+        new ThreadLocal<>();
+
+public void handleRequest(Request request) {
+    try {
+        UserInfo userInfo = getUserInfo(request);
+        USER_CONTEXT.set(userInfo);
+
+        // 处理具体业务
+        doBusiness();
+    } finally {
+        // 无论正常结束还是发生异常，都必须清理
+        USER_CONTEXT.remove();
+    }
+}
+```
 
