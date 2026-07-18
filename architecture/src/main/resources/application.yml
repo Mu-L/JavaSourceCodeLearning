@@ -1,0 +1,32 @@
+spring:
+  application:
+    name: policy-search
+  kafka:
+    consumer:
+      enable-auto-commit: false
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    listener:
+      ack-mode: record
+  redis:
+    host: localhost
+    port: 6379
+
+dubbo:
+  application:
+    name: policy-search
+  protocol:
+    name: dubbo
+    port: 20880
+
+policy:
+  search:
+    redis-ttl-seconds: 60
+  snapshot:
+    directory: ./data/policy-snapshots
+    initial-version: startup
+    retry-delay-ms: 5000
+  kafka:
+    topic: policy-change
+    group-id: policy-search
