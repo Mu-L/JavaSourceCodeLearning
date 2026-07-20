@@ -28,7 +28,7 @@
 | --- | --- | --- |
 | 多供应商并发搜索 | 任务分发、异步回调、结果聚合、超时与迟到回调 | 已实现伪代码 |
 | 海量政策匹配 | 全量加载、增量追平、位图索引、快照校验与热切换 | 已实现伪代码 |
-| 交易/下单 | 幂等、状态流转、库存确认、分布式一致性与补偿 | 待补充 |
+| 交易/下单 | 幂等下单、受控状态流转、乐观并发与失败隔离 | 已实现核心伪代码 |
 
 ## 分层结构
 
@@ -37,6 +37,7 @@
 ```text
 com.arch.policy
 ├── api
+│   ├── book                   # 下单及订单状态变更契约
 │   └── search                 # 项目级搜索契约、请求和响应 DTO
 ├── common
 │   ├── config                 # Spring Bean 装配
@@ -50,6 +51,10 @@ com.arch.policy
 │       ├── kafka              # 政策变更消息适配器
 │       ├── redis              # 聚合状态和完成通知适配器
 │       └── rpc                # Dubbo 接口实现
+├── book
+│   ├── application            # 幂等下单、状态变更用例和持久化端口
+│   ├── domain                 # 订单聚合、状态枚举和合法迁移规则
+│   └── infrastructure         # 内存仓储示例和 Dubbo 适配器
 └── PolicySearchApplication    # 当前搜索场景的启动入口
 ```
 
@@ -146,6 +151,55 @@ flowchart TD
 Kafka 政策变更消息使用全局单调递增的 `position`，重复或乱序消息会被忽略。如果 Topic 使用多个分区，
 生产端必须提供全局序列；否则应将当前位置模型调整为按分区保存 offset。
 
+## 场景三：幂等下单与订单状态机
+
+`BookOrderRpcService.createOrder` 以调用方生成的 `requestId` 作为幂等键。订单通过 `CREATE_SUCCEEDED` 事件
+从 `CREATE` 进入 `WAIT_PAY`。重复请求返回第一次创建的订单，不重复生成业务单。生产实现应在数据库中为
+`request_id` 建唯一索引，并把创单与初始状态流转放入本地事务。
+
+外部系统通过 `BookOrderRpcService.fireEvent` 提交支付、出票、验真、取消等业务事件，不能直接指定目标状态。
+`OrderStateMachine` 使用 `(当前状态, 业务事件)` 定位唯一迁移，状态参考 `ipolicytradecore`：
+
+```mermaid
+stateDiagram-v2
+    CREATE --> WAIT_PAY: CREATE_SUCCEEDED
+    CREATE --> CREATE_FAIL: CREATE_FAILED
+    CREATE --> CANCEL: CANCEL
+    WAIT_PAY --> BOOKING: PAY_SUCCEEDED
+    WAIT_PAY --> CANCEL: CANCEL
+    BOOKING --> BOOKED: BOOK_SUCCEEDED
+    BOOKING --> BOOK_FAIL: BOOK_FAILED
+    BOOKING --> VALIDATING: START_VALIDATE
+    BOOKED --> VALIDATING: START_VALIDATE
+    BOOKED --> CANCEL: CANCEL
+    BOOKED --> REFUNDED: REFUND_SUCCEEDED
+    BOOK_FAIL --> VALIDATING: START_VALIDATE
+    BOOK_FAIL --> CANCEL: CANCEL
+    VALIDATING --> BOOKED: VALIDATE_SUCCEEDED
+    VALIDATING --> VALIDATE_FAIL: VALIDATE_FAILED
+    VALIDATE_FAIL --> BOOKED: VALIDATE_SUCCEEDED
+    VALIDATE_FAIL --> CANCEL: CANCEL
+    CREATE_FAIL --> DELETED: DELETE
+    BOOK_FAIL --> DELETED: DELETE
+    CANCEL --> DELETED: DELETE
+    REFUNDED --> DELETED: DELETE
+```
+
+一次迁移依次执行 Guard、前置 Action、领域状态变更、原子持久化和后置 Action。`PAY_SUCCEEDED`、
+`BOOK_SUCCEEDED` 等关键事件通过 Guard 校验支付单号、PNR 等业务凭据；业务可以通过迁移 Builder 注册更多
+风控校验、库存检查和任务创建处理器，而不修改状态机引擎。
+
+状态事件携带全局唯一 `eventId` 和 `expectedVersion`。仓储在一个事务边界内完成以下写入：
+
+1. 使用 `order_no + version` compare-and-set 更新订单，阻止并发覆盖。
+2. 保存 `eventId` 处理结果，重复消息直接返回第一次处理的快照。
+3. 追加包含 `from/event/to/operator` 的完整状态历史。
+4. 写入 Outbox 消息，由独立发布任务可靠投递给库存、支付、出票等下游。
+
+后置 Action 仅在事务提交后执行，失败会进入 `FailedPostActionStore` 等待重试，不会把已提交订单回滚成旧状态。
+示例使用内存实现展示原子语义；生产落地应使用数据库唯一索引、条件更新、状态历史表、Outbox 表和重试任务，
+并由消息消费方继续按照 `eventId` 幂等。
+
 ## 新增架构场景的约定
 
 新增交易、下单或其他架构伪代码时，应遵循以下约定：
@@ -165,4 +219,5 @@ Kafka 政策变更消息使用全局单调递增的 `position`，重复或乱序
 mvn -f architecture/pom.xml clean test
 ```
 
-当前测试覆盖异步供应商聚合、超时返回部分结果、全量加增量快照构建、运行时快照切换以及失败候选版本隔离。
+当前测试覆盖异步供应商聚合、超时返回部分结果、全量加增量快照构建、运行时快照切换、幂等下单、事件驱动
+状态迁移、Guard/Action 执行顺序、事件幂等、乐观并发、状态历史和 Outbox 原子记录。
