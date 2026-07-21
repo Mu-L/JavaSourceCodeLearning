@@ -20,6 +20,15 @@ dubbo:
     name: dubbo
     port: 20880
 
+book:
+  seata:
+    tenant-id: book
+    tx-service-group: book-saga-group
+  recovery:
+    scan-delay-ms: 5000
+  creation:
+    scan-delay-ms: 3000
+
 policy:
   search:
     redis-ttl-seconds: 60

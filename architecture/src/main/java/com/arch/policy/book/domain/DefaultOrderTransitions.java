@@ -10,6 +10,7 @@ public final class DefaultOrderTransitions {
         List<OrderTransition> transitions = new ArrayList<OrderTransition>();
         add(transitions, OrderState.CREATE, OrderEvent.CREATE_SUCCEEDED, OrderState.WAIT_PAY);
         add(transitions, OrderState.CREATE, OrderEvent.CREATE_FAILED, OrderState.CREATE_FAIL);
+        add(transitions, OrderState.CREATE, OrderEvent.START_VALIDATE, OrderState.VALIDATING);
         add(transitions, OrderState.CREATE, OrderEvent.CANCEL, OrderState.CANCEL);
         transitions.add(OrderTransition
                 .from(OrderState.WAIT_PAY, OrderEvent.PAY_SUCCEEDED, OrderState.BOOKING)
@@ -32,6 +33,12 @@ public final class DefaultOrderTransitions {
                 .guard(new RequiredAttributeGuard("refundNo")).build());
         add(transitions, OrderState.VALIDATING, OrderEvent.VALIDATE_SUCCEEDED, OrderState.BOOKED);
         add(transitions, OrderState.VALIDATING, OrderEvent.VALIDATE_FAILED, OrderState.VALIDATE_FAIL);
+        transitions.add(OrderTransition
+                .from(OrderState.VALIDATING, OrderEvent.GDS_BOOKING_CONFIRMED, OrderState.WAIT_PAY)
+                .guard(new RequiredAttributeGuard("bookingReference")).build());
+        transitions.add(OrderTransition
+                .from(OrderState.VALIDATING, OrderEvent.GDS_BOOKING_REJECTED, OrderState.CREATE_FAIL)
+                .guard(new RequiredAttributeGuard("failureCode")).build());
         add(transitions, OrderState.VALIDATE_FAIL, OrderEvent.VALIDATE_SUCCEEDED, OrderState.BOOKED);
         add(transitions, OrderState.VALIDATE_FAIL, OrderEvent.CANCEL, OrderState.CANCEL);
         add(transitions, OrderState.CREATE_FAIL, OrderEvent.CANCEL, OrderState.CANCEL);

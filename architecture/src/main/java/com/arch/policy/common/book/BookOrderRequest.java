@@ -10,6 +10,7 @@ public final class BookOrderRequest implements Serializable {
     private String productId;
     private int quantity;
     private BigDecimal amount;
+    private String promotionId;
 
     public String getRequestId() { return requestId; }
     public void setRequestId(String requestId) { this.requestId = requestId; }
@@ -21,4 +22,6 @@ public final class BookOrderRequest implements Serializable {
     public void setQuantity(int quantity) { this.quantity = quantity; }
     public BigDecimal getAmount() { return amount; }
     public void setAmount(BigDecimal amount) { this.amount = amount; }
+    public String getPromotionId() { return promotionId; }
+    public void setPromotionId(String promotionId) { this.promotionId = promotionId; }
 }

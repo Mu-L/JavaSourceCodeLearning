@@ -7,17 +7,19 @@ public final class BookOrder {
     private final String requestId;
     private final String customerId;
     private final String productId;
+    private final String promotionId;
     private final int quantity;
     private final BigDecimal amount;
     private OrderState state;
     private long version;
 
     private BookOrder(String orderNo, String requestId, String customerId, String productId,
-                      int quantity, BigDecimal amount, OrderState state, long version) {
+                      String promotionId, int quantity, BigDecimal amount, OrderState state, long version) {
         this.orderNo = orderNo;
         this.requestId = requestId;
         this.customerId = customerId;
         this.productId = productId;
+        this.promotionId = promotionId;
         this.quantity = quantity;
         this.amount = amount;
         this.state = state;
@@ -25,13 +27,14 @@ public final class BookOrder {
     }
 
     public static BookOrder create(String orderNo, String requestId, String customerId,
-                                   String productId, int quantity, BigDecimal amount) {
-        return new BookOrder(orderNo, requestId, customerId, productId, quantity, amount,
+                                   String productId, String promotionId, int quantity, BigDecimal amount) {
+        return new BookOrder(orderNo, requestId, customerId, productId, promotionId, quantity, amount,
                 OrderState.CREATE, 0L);
     }
 
     public BookOrder copy() {
-        return new BookOrder(orderNo, requestId, customerId, productId, quantity, amount, state, version);
+        return new BookOrder(orderNo, requestId, customerId, productId, promotionId,
+                quantity, amount, state, version);
     }
 
     void applyState(OrderState target) {
@@ -43,6 +46,7 @@ public final class BookOrder {
     public String getRequestId() { return requestId; }
     public String getCustomerId() { return customerId; }
     public String getProductId() { return productId; }
+    public String getPromotionId() { return promotionId; }
     public int getQuantity() { return quantity; }
     public BigDecimal getAmount() { return amount; }
     public OrderState getState() { return state; }

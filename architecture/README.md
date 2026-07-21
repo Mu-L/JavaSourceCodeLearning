@@ -14,9 +14,9 @@
 ## 模块目标
 
 - 用最少的代码表达架构中的核心职责、协作关系和一致性约束。
-- 为类似业务问题提供可讨论、可验证、可演进的设计参考。
+- 为类似业务问题提供可讨论、可演进的设计参考。
 - 通过接口隔离外部系统，使方案不被 Dubbo、Kafka、Redis 等具体技术绑定。
-- 通过测试验证关键架构行为，而不是覆盖完整的生产业务流程。
+- 通过场景说明和关键注释表达核心架构行为及约束。
 - 持续积累搜索、政策匹配、交易、下单等不同场景的方案。
 
 本模块属于架构伪代码，生产落地时仍需根据实际情况补充鉴权、限流、熔断、监控、链路追踪、异常分级、
@@ -153,9 +153,54 @@ Kafka 政策变更消息使用全局单调递增的 `position`，重复或乱序
 
 ## 场景三：幂等下单与订单状态机
 
-`BookOrderRpcService.createOrder` 以调用方生成的 `requestId` 作为幂等键。订单通过 `CREATE_SUCCEEDED` 事件
-从 `CREATE` 进入 `WAIT_PAY`。重复请求返回第一次创建的订单，不重复生成业务单。生产实现应在数据库中为
-`request_id` 建唯一索引，并把创单与初始状态流转放入本地事务。
+`BookOrderRpcService.createOrder` 以调用方生成的 `requestId` 作为幂等键。下单首先保存 `CREATE` 状态订单，
+提交后才由 Seata Saga 调用 GDS，因此不会在本地数据库事务中持有远程调用。
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Caller as 调用方
+    participant Order as 下单应用服务
+    participant DB as 本地数据库
+    participant Saga as Seata Saga
+    participant GDS as GDS
+    participant Task as 任务/补偿表
+
+    Caller->>Order: createOrder(requestId)
+    Order->>Order: 查询 Redis 幂等结果缓存
+    Order->>Order: Redisson RLock 获取 requestId 短锁
+    Order->>Order: 锁内二次查缓存，仅持锁者查数据库
+    Order->>DB: 本地事务写订单 CREATE
+    DB-->>Order: 提交成功
+    Order->>Order: 回填结果缓存并释放 RLock
+    Order->>DB: 抢占订单创建调度租约
+    Order->>Saga: 启动 BookOrderCreationSaga
+    Saga->>GDS: 发起 PNR 占编
+    GDS-->>Saga: SUCCESS / FAIL / UNKNOWN
+    alt SUCCESS
+        Saga->>DB: CREATE_SUCCEEDED → WAIT_PAY
+        Saga->>Task: 幂等创建待支付任务
+    else FAIL
+        Saga->>DB: CREATE_FAILED → CREATE_FAIL
+        Saga->>Task: 幂等创建促销库存返还任务
+    else UNKNOWN
+        Saga->>DB: START_VALIDATE → VALIDATING
+        Saga->>Task: 创建 GDS 核对任务 + 人工任务
+    end
+```
+
+订单与 `START_ORDER_CREATION` Outbox 在同一本地事务中提交。事务后立即尝试发布；如果进程在订单提交后、
+启动 Saga 前崩溃，`OrderCreationOutboxScheduler` 会重新投递未发布消息。Saga 使用 `orderNo` 作为业务幂等键，
+已经启动的流程由 Seata 根据持久化的状态机日志继续恢复。
+Saga 使用 `orderNo` 作为业务幂等键；GDS 侧也必须使用订单号或稳定请求号保证占编幂等。
+
+高并发重复请求首先读取 `book:create:result:{requestId}` 幂等结果缓存，命中后不访问数据库。缓存未命中时，
+使用 Redisson `RLock` 锁定 `book:create:lock:{requestId}`，锁内再次检查缓存，只有锁持有者才允许查询数据库和
+执行本地创建事务；未获得锁的请求等待首个请求回填结果缓存，同样不会查询数据库。RLock 最多等待 300ms，
+持锁期间由 Redisson watchdog 自动续期；锁只覆盖本地事务，不覆盖耗时不可控的 Saga/GDS 调用。
+
+订单状态迁移后会同步刷新结果缓存，缓存 TTL 为 10 分钟。Redis 不可用时锁和缓存主动降级，最终仍由数据库
+`request_id` 唯一索引保证只能创建一张订单；Redisson 锁和结果缓存是防穿透、削峰层，不是最终一致性依据。
 
 外部系统通过 `BookOrderRpcService.fireEvent` 提交支付、出票、验真、取消等业务事件，不能直接指定目标状态。
 `OrderStateMachine` 使用 `(当前状态, 业务事件)` 定位唯一迁移，状态参考 `ipolicytradecore`：
@@ -164,6 +209,7 @@ Kafka 政策变更消息使用全局单调递增的 `position`，重复或乱序
 stateDiagram-v2
     CREATE --> WAIT_PAY: CREATE_SUCCEEDED
     CREATE --> CREATE_FAIL: CREATE_FAILED
+    CREATE --> VALIDATING: START_VALIDATE
     CREATE --> CANCEL: CANCEL
     WAIT_PAY --> BOOKING: PAY_SUCCEEDED
     WAIT_PAY --> CANCEL: CANCEL
@@ -177,6 +223,8 @@ stateDiagram-v2
     BOOK_FAIL --> CANCEL: CANCEL
     VALIDATING --> BOOKED: VALIDATE_SUCCEEDED
     VALIDATING --> VALIDATE_FAIL: VALIDATE_FAILED
+    VALIDATING --> WAIT_PAY: GDS_BOOKING_CONFIRMED
+    VALIDATING --> CREATE_FAIL: GDS_BOOKING_REJECTED
     VALIDATE_FAIL --> BOOKED: VALIDATE_SUCCEEDED
     VALIDATE_FAIL --> CANCEL: CANCEL
     CREATE_FAIL --> DELETED: DELETE
@@ -200,6 +248,25 @@ stateDiagram-v2
 示例使用内存实现展示原子语义；生产落地应使用数据库唯一索引、条件更新、状态历史表、Outbox 表和重试任务，
 并由消息消费方继续按照 `eventId` 幂等。
 
+### Seata Saga 与补偿
+
+`statelang/book_order_creation_saga.json` 是 Seata 状态语言定义，包含 GDS 服务节点、结果 Choice、异常捕获和
+`CancelReservedPnr` 补偿节点。`SeataOrderCreationSaga` 使用 `orderNo` 作为 business key 启动状态机；
+`SeataSagaConfiguration` 在存在 `DataSource` 时创建数据库持久化的 `DbStateMachineConfig` 和
+`StateMachineEngine`。没有引擎 Bean 的本地演示环境使用相同 Saga State Services 直接编排，业务行为一致。
+
+Saga 提供的是可恢复的最终一致性，而不是把 GDS 变成支持 ACID 回滚的数据库资源。每个外部正向动作都必须有
+幂等补偿语义，并允许空补偿：
+
+- PNR 占编失败且已经扣减促销库存：创建 `RETURN_PROMOTION_STOCK` 任务。
+- PNR 已占编但采购商取消：创建 `CANCEL_PNR` 任务。
+- 支付成功但最终出票失败：创建 `REFUND_PAYMENT` 任务。
+- GDS 返回 UNKNOWN：创建 `VALIDATE_GDS_BOOKING` 与人工核对任务，定时比较本地状态和 GDS 实际状态。
+
+补偿表使用业务唯一键防重；取消 PNR 额外使用 `(order_no, child_order_no, pnr, task_type)` 唯一索引。任务采用
+指数退避重试，超过五次进入 `MANUAL_REQUIRED`。示例 DDL 位于 `db/book_order_schema.sql`；Seata Server 和
+Saga 引擎日志表应使用部署版本对应的官方脚本创建，避免跨版本复制表结构。
+
 ## 新增架构场景的约定
 
 新增交易、下单或其他架构伪代码时，应遵循以下约定：
@@ -208,16 +275,5 @@ stateDiagram-v2
 2. 对外契约放在 `api.<scene>`，内部实现放在对应的 `<scene>` 业务包。
 3. 使用 `application/domain/infrastructure` 表达职责边界，不让领域规则依赖具体中间件。
 4. 优先提供展示关键协作关系的最小实现，避免把伪代码扩展成不完整的生产框架。
-5. 为幂等、一致性、并发、超时、切换和失败隔离等关键架构行为编写测试。
+5. 用精简的流程代码和注释表达幂等、一致性、并发、超时、切换和失败隔离等关键行为。
 6. 在场景文档中记录设计取舍、适用边界，以及生产落地仍需补充的能力。
-
-## 运行验证
-
-在仓库根目录执行：
-
-```bash
-mvn -f architecture/pom.xml clean test
-```
-
-当前测试覆盖异步供应商聚合、超时返回部分结果、全量加增量快照构建、运行时快照切换、幂等下单、事件驱动
-状态迁移、Guard/Action 执行顺序、事件幂等、乐观并发、状态历史和 Outbox 原子记录。

@@ -1,0 +1,54 @@
+{
+  "Name": "BookOrderCreationSaga",
+  "Comment": "本地订单CREATE提交后执行GDS占编，并按SUCCESS/FAIL/UNKNOWN分流",
+  "Version": "1.0.0",
+  "StartState": "ReservePnr",
+  "States": {
+    "ReservePnr": {
+      "Type": "ServiceTask",
+      "ServiceName": "orderCreationSagaStateServices",
+      "ServiceMethod": "reservePnr",
+      "Input": ["$.[orderNo]"],
+      "Output": {"gdsResult": "$#root"},
+      "CompensateState": "CancelReservedPnr",
+      "Catch": [{"Exceptions": ["java.lang.Throwable"], "Next": "MarkUnknown"}],
+      "Next": "RouteGdsResult"
+    },
+    "RouteGdsResult": {
+      "Type": "Choice",
+      "Choices": [
+        {"Expression": "$.[gdsResult].status.name() == 'SUCCESS'", "Next": "MarkSuccess"},
+        {"Expression": "$.[gdsResult].status.name() == 'FAIL'", "Next": "MarkFailure"}
+      ],
+      "Default": "MarkUnknown"
+    },
+    "MarkSuccess": {
+      "Type": "ServiceTask",
+      "ServiceName": "orderCreationSagaStateServices",
+      "ServiceMethod": "markCreateSuccess",
+      "Input": ["$.[orderNo]", "$.[gdsResult].pnr"],
+      "Next": "Succeed"
+    },
+    "MarkFailure": {
+      "Type": "ServiceTask",
+      "ServiceName": "orderCreationSagaStateServices",
+      "ServiceMethod": "markCreateFailure",
+      "Input": ["$.[orderNo]", "$.[gdsResult].errorCode", "$.[promotionId]"],
+      "Next": "Succeed"
+    },
+    "MarkUnknown": {
+      "Type": "ServiceTask",
+      "ServiceName": "orderCreationSagaStateServices",
+      "ServiceMethod": "markCreateUnknown",
+      "Input": ["$.[orderNo]", "GDS_RESULT_UNKNOWN"],
+      "Next": "Succeed"
+    },
+    "CancelReservedPnr": {
+      "Type": "ServiceTask",
+      "ServiceName": "orderCreationSagaStateServices",
+      "ServiceMethod": "enqueueCancelPnr",
+      "Input": ["$.[orderNo]", "", "$.[gdsResult].pnr"]
+    },
+    "Succeed": {"Type": "Succeed"}
+  }
+}
