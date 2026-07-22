@@ -1,0 +1,68 @@
+{
+  "Name": "TradeOrderCreationSaga",
+  "Comment": "本地子订单提交后扣库存、调用三方并按明确结果确认或返还库存",
+  "Version": "1.0.0",
+  "StartState": "DeductStock",
+  "States": {
+    "DeductStock": {
+      "Type": "ServiceTask",
+      "ServiceName": "orderCreationSagaStateServices",
+      "ServiceMethod": "deductStock",
+      "Input": ["$.[order]", "$.[request]"],
+      "Output": {"stockDeducted": "$#root"},
+      "Next": "RouteStockResult"
+    },
+    "RouteStockResult": {
+      "Type": "Choice",
+      "Choices": [
+        {"Expression": "$.[stockDeducted] == true", "Next": "CreateThirdOrder"}
+      ],
+      "Default": "CompleteStockFailure"
+    },
+    "CreateThirdOrder": {
+      "Type": "ServiceTask",
+      "ServiceName": "orderCreationSagaStateServices",
+      "ServiceMethod": "createThirdOrder",
+      "Input": ["$.[order]", "$.[request]"],
+      "Output": {"thirdResult": "$#root"},
+      "Next": "RouteThirdResult"
+    },
+    "RouteThirdResult": {
+      "Type": "Choice",
+      "Choices": [
+        {"Expression": "$.[thirdResult].status.name() == 'SUCCESS'", "Next": "CompleteSuccess"},
+        {"Expression": "$.[thirdResult].status.name() == 'FAILED'", "Next": "CompleteFailure"}
+      ],
+      "Default": "WaitForThirdResult"
+    },
+    "CompleteSuccess": {
+      "Type": "ServiceTask",
+      "ServiceName": "orderCreationSagaStateServices",
+      "ServiceMethod": "completeSuccess",
+      "Input": ["$.[order]"],
+      "Next": "Succeed"
+    },
+    "CompleteFailure": {
+      "Type": "ServiceTask",
+      "ServiceName": "orderCreationSagaStateServices",
+      "ServiceMethod": "completeFailure",
+      "Input": ["$.[order]"],
+      "Next": "Succeed"
+    },
+    "CompleteStockFailure": {
+      "Type": "ServiceTask",
+      "ServiceName": "orderCreationSagaStateServices",
+      "ServiceMethod": "completeStockFailure",
+      "Input": ["$.[order]"],
+      "Next": "Succeed"
+    },
+    "WaitForThirdResult": {
+      "Type": "ServiceTask",
+      "ServiceName": "orderCreationSagaStateServices",
+      "ServiceMethod": "waitForThirdResult",
+      "Input": ["$.[order]"],
+      "Next": "Succeed"
+    },
+    "Succeed": {"Type": "Succeed"}
+  }
+}

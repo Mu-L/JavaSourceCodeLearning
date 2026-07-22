@@ -28,8 +28,8 @@ public class SeataSagaConfiguration {
     public DbStateMachineConfig dbStateMachineConfig(
             DataSource dataSource, ThreadPoolExecutor seataSagaExecutor,
             @Value("${spring.application.name:architecture}") String applicationId,
-            @Value("${book.seata.tx-service-group:book-saga-group}") String txServiceGroup,
-            @Value("${book.seata.tenant-id:book}") String tenantId) {
+            @Value("${order.seata.tx-service-group:order-saga-group}") String txServiceGroup,
+            @Value("${order.seata.tenant-id:order}") String tenantId) {
         DbStateMachineConfig config = new DbStateMachineConfig();
         config.setDataSource(dataSource);
         config.setApplicationId(applicationId);
@@ -37,7 +37,7 @@ public class SeataSagaConfiguration {
         config.setDefaultTenantId(tenantId);
         config.setThreadPoolExecutor(seataSagaExecutor);
         config.setAutoRegisterResources(true);
-        config.setResources(new String[] { "classpath*:statelang/book_order_creation_saga.json" });
+        config.setResources(new String[] { "classpath*:statelang/order_creation_saga.json" });
         config.setSagaJsonParser("jackson");
         config.setSagaBranchRegisterEnable(true);
         return config;
