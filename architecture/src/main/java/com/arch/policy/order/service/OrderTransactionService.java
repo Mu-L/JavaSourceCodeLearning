@@ -1,18 +1,23 @@
 package com.arch.policy.order.service;
 
 import com.arch.policy.order.model.OrderRequest;
+import com.arch.policy.order.model.OrderEvent;
+import com.arch.policy.order.model.OrderStateMachine;
 import com.arch.policy.order.model.OrderStatus;
 import com.arch.policy.order.model.TradeOrder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import javax.annotation.Resource;
 import java.util.UUID;
 
 /** 只负责订单库的本地事务，示例使用日志代替真实DB操作。 */
 @Service
 public class OrderTransactionService {
     private static final Logger LOGGER = LoggerFactory.getLogger(OrderTransactionService.class);
+    @Resource
+    private OrderStateMachine orderStateMachine;
 
     public TradeOrder findByRequest(String orderSerialNo, String supplierId) {
         LOGGER.info("[订单库] 按 orderSerialNo + supplierId 查询幂等订单, orderSerialNo={}, supplierId={}",
@@ -30,10 +35,11 @@ public class OrderTransactionService {
                 request.getSupplierId(), OrderStatus.CREATE);
     }
 
-    public void updateStatus(TradeOrder order, OrderStatus status) {
-        order.setStatus(status);
-        LOGGER.info("[订单库事务] CAS更新订单状态, tradeOrderSerialNo={}, status={}",
-                order.getTradeOrderSerialNo(), status);
+    public void fireEvent(TradeOrder order, OrderEvent event) {
+        OrderStatus source = order.getStatus();
+        OrderStatus target = orderStateMachine.fire(order, event);
+        LOGGER.info("[订单库事务] 状态机迁移并CAS更新订单, tradeOrderSerialNo={}, event={}, from={}, to={}",
+                order.getTradeOrderSerialNo(), event, source, target);
     }
 
     private static String newTradeOrderSerialNo() {

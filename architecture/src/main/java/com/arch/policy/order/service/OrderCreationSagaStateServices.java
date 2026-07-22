@@ -1,7 +1,7 @@
 package com.arch.policy.order.service;
 
 import com.arch.policy.order.model.OrderRequest;
-import com.arch.policy.order.model.OrderStatus;
+import com.arch.policy.order.model.OrderEvent;
 import com.arch.policy.order.model.SupplierOrderStatus;
 import com.arch.policy.order.model.ThirdOrderResult;
 import com.arch.policy.order.model.ThirdOrderStatus;
@@ -46,18 +46,18 @@ public final class OrderCreationSagaStateServices {
 
     public boolean completeSuccess(TradeOrder order) {
         inventoryTransactionService.confirm(order.getTradeOrderSerialNo());
-        orderTransactionService.updateStatus(order, OrderStatus.WAIT_PAY);
+        orderTransactionService.fireEvent(order, OrderEvent.CREATE_SUCCEEDED);
         return true;
     }
 
     public boolean completeFailure(TradeOrder order) {
         inventoryTransactionService.returnStock(order.getTradeOrderSerialNo());
-        orderTransactionService.updateStatus(order, OrderStatus.CREATE_FAIL);
+        orderTransactionService.fireEvent(order, OrderEvent.CREATE_FAILED);
         return true;
     }
 
     public boolean completeStockFailure(TradeOrder order) {
-        orderTransactionService.updateStatus(order, OrderStatus.CREATE_FAIL);
+        orderTransactionService.fireEvent(order, OrderEvent.CREATE_FAILED);
         return true;
     }
 

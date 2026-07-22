@@ -1,6 +1,6 @@
 package com.arch.policy.order.service;
 
-import com.arch.policy.order.model.OrderStatus;
+import com.arch.policy.order.model.OrderEvent;
 import com.arch.policy.order.model.SupplierOrder;
 import com.arch.policy.order.model.SupplierOrderStatus;
 import com.arch.policy.order.model.ThirdOrderResult;
@@ -45,7 +45,7 @@ public class OrderRecoveryService {
             supplierOrderTransactionService.saveResult(order.getTradeOrderSerialNo(),
                     result.getThirdPartyOrderNo(), SupplierOrderStatus.SUCCESS);
             inventoryTransactionService.confirm(order.getTradeOrderSerialNo());
-            orderTransactionService.updateStatus(order, OrderStatus.WAIT_PAY);
+            orderTransactionService.fireEvent(order, OrderEvent.CREATE_SUCCEEDED);
             return;
         }
 
@@ -53,7 +53,7 @@ public class OrderRecoveryService {
             supplierOrderTransactionService.saveResult(order.getTradeOrderSerialNo(),
                     result.getThirdPartyOrderNo(), SupplierOrderStatus.FAILED);
             inventoryTransactionService.returnStock(order.getTradeOrderSerialNo());
-            orderTransactionService.updateStatus(order, OrderStatus.CREATE_FAIL);
+            orderTransactionService.fireEvent(order, OrderEvent.CREATE_FAILED);
             return;
         }
 

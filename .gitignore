@@ -20,6 +20,7 @@ Spring-Boot/target
 Spring-Netty/target
 Spring-Security/target
 rocketmqdemo/target
+architecture/target
 
 # .DO_Store
 .DS_Store

@@ -19,5 +19,7 @@ public class TradeOrder {
     public String getTradeOrderSerialNo() { return tradeOrderSerialNo; }
     public String getSupplierId() { return supplierId; }
     public OrderStatus getStatus() { return status; }
-    public void setStatus(OrderStatus status) { this.status = status; }
+
+    /** 仅供订单状态机应用已经校验通过的目标状态。 */
+    void applyStatus(OrderStatus status) { this.status = status; }
 }
